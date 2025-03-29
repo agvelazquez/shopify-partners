@@ -1,37 +1,86 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
+from urllib.parse import urlparse
 import requests
 import pandas as pd
 import os
 
+
 BASE_DIR  =  Path(__file__).resolve().parent
 
-URLS_FILE = BASE_DIR / "urls.txt"
-OUPTUT_FILE = BASE_DIR / "data.csv"
+#Instructions 
+# Add link to variable page_url
+# Update number of pages variables
+# Once finished set commented link to DONE and repeat
+
+#Marketing and sales
+#DONE#https://www.shopify.com/partners/directory/services/marketing-and-sales/analytics-and-tracking
+#DONE#https://www.shopify.com/partners/directory/services/marketing-and-sales/email-marketing
+#DONE#https://www.shopify.com/partners/directory/services/marketing-and-sales/seo-and-paid-search
+#DONE#https://www.shopify.com/partners/directory/services/marketing-and-sales/setup-search-engine-advertising-campaigns
+#DONE#https://www.shopify.com/partners/directory/services/marketing-and-sales/sales-channel-setup
+#DONE#https://www.shopify.com/partners/directory/services/marketing-and-sales/conversion-rate-optimization
+
+#Expert Guidance
+#DONE#https://www.shopify.com/partners/directory/services/expert-guidance/business-strategy-guidance
+#DONE#https://www.shopify.com/partners/directory/services/expert-guidance/product-sourcing-guidance
+#DONE#https://www.shopify.com/partners/directory/services/expert-guidance/guidance-for-improving-your-site-performance-and-speed
+#DONE#https://www.shopify.com/partners/directory/services/expert-guidance/international-expansion
+#DONE#https://www.shopify.com/partners/directory/services/expert-guidance/wholesale-or-b2b
+
+#Store setup and management
+#BAD#https://www.shopify.com/partners/directory/services/store-setup/customize-design
+#BAD#https://www.shopify.com/partners/directory/services/store-setup/migrate-from-another-platform
+#https://www.shopify.com/partners/directory/services/store-setup/set-up-products-and-collections
+#DONE#https://www.shopify.com/partners/directory/services/store-setup/pos-setup-and-migration
+#DONE#https://www.shopify.com/partners/directory/services/store-setup/checkout-upgrade
+#DONE#https://www.shopify.com/partners/directory/services/store-setup/ongoing-website-management
+
+#Development and troubleshooting
+#DONE##https://www.shopify.com/partners/directory/services/development-and-troubleshooting/custom-apps-integrations
+#DONE#https://www.shopify.com/partners/directory/services/development-and-troubleshooting/troubleshooting-and-problem-resolution
+#DONE#https://www.shopify.com/partners/directory/services/development-and-troubleshooting/systems-integration
+
+#Content writing
+#DONE#https://www.shopify.com/partners/directory/services/content-writing/website-marketing-content
+
+#Visual content and branding
+#DONE#https://www.shopify.com/partners/directory/services/visual-content-and-branding/create-custom-banner-ads
+#DONE#https://www.shopify.com/partners/directory/services/visual-content-and-branding/develop-brand-look-and-feel
+#DONE#https://www.shopify.com/partners/directory/services/visual-content-and-branding/create-3d-models-ar
+#DONE#https://www.shopify.com/partners/directory/services/visual-content-and-branding/take-product-photos
 
 class Scraper:
     
     def __init__(self) -> None:
         self.session =  requests.Session()
         self.base_url = "https://www.shopify.com"
-        self.page_url = "https://www.shopify.com/partners/directory/services/marketing-and-sales/conversion-rate-optimization"
+        self.page_url = "https://www.shopify.com/partners/directory/services/expert-guidance/wholesale-or-b2b"
         self.headers  = {
                         "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8",
                          "Accept-Language":"en-US,en;q=0.5",
                          "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0"
                          }
+        # Extract the last part of the URL
+        last_part = Path(urlparse(self.page_url).path).name
+
+        self.url_file = BASE_DIR / f"{last_part}-urls.txt"
+        self.output_file = BASE_DIR / f"{last_part}-data.csv"
+
+        #Current link number of pages
+        self.n_pages = 63
     
     def store_urls(self , url : str):
-        with open(URLS_FILE,"a") as f:
+        with open(self.url_file,"a") as f:
             f.write(url + "\n") 
     
     def load_urls(self):
-        with open(URLS_FILE , "r") as f:
+        with open(self.url_file , "r") as f:
             return [line.strip() for line in f.readlines()]       
     
     def to_csv(self,data : dict):
         df =pd.json_normalize(data)
-        df.to_csv(OUPTUT_FILE,mode="a",header=not os.path.exists(OUPTUT_FILE),index=False)
+        df.to_csv(self.output_file,mode="a",header=not os.path.exists(self.output_file),index=False)
     
     def fetch_page(self, page  : int):
         resposne =  self.session.get(self.page_url,params={'page':page})
@@ -45,9 +94,12 @@ class Scraper:
     def page_partners(self, soup : BeautifulSoup) -> list:
         objs =  soup.select("div.mb-4.bg-white.transition-colors.overflow-hidden.rounded-b-lg.rounded-t-lg.border.border-zinc-200")
         for obj in objs:
-            url =  obj.select_one("a.w-full.pt-4.pr-6.pb-4.pl-4.bg-transparent.grid")['href']
-            self.store_urls(self.base_url + url)  
-    
+            try:
+                url =  obj.select_one("a.w-full.pt-4.pr-6.pb-4.pl-4.bg-transparent.grid")['href']
+                self.store_urls(self.base_url + url) 
+            except (TypeError, KeyError):
+                continue
+
     def contacts(self,soup : BeautifulSoup):
         contacts_info = soup.select("div.flex.flex-col.gap-y-3 div.flex.flex-wrap.gap-x-2.items-center")
         contacts_data = {}
@@ -102,7 +154,7 @@ class Scraper:
             
         
     def url_extractor(self):
-        for i in range(1,76):
+        for i in range(1,self.n_pages):
             print(f'checking page {i}')
             soup  =  self.fetch_page(i)
             self.page_partners(soup)
